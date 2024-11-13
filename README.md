@@ -1,10 +1,3 @@
-
-* pull image with secret --X
-* helm                   -- X
-* CHANGE ON-DEMAND 
-* seald secret
-
-
 # Gitops CI/CD Project
 ### Create vpc in AWS with Terraform
 ### Create eks cluster and ArgoCD with Terraform
