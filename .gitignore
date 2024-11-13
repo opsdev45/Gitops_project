@@ -1,0 +1,13 @@
+*
+!*.py
+!*.yml
+!*.yaml
+!*/
+!.gitignore
+!Dockerfile
+!Jenkinsfile*
+!*.jpg
+!*.html
+!requirements.txt
+!README.md
+!*.tf

@@ -1,0 +1,14 @@
+replica: 2
+
+name:
+  app: "migdal"
+
+image:
+  repo: devops45of/jenkins
+  tag: "20"
+
+service:
+  type: NodePort
+  port: 8000
+  name: "app-service"
+

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Values.name.app }}-deployment
+spec:
+  selector:
+    matchLabels:
+      app: {{.Values.name.app }}
+  replicas: {{.Values.replica }}
+  template:
+    metadata:
+      labels:
+        app: {{.Values.name.app }}
+    spec:
+      containers:
+      - name: {{.Values.name.app }}
+        image: {{.Values.image.repo }}:{{.Values.image.tag}}
+      imagePullSecrets:
+      - name: dockerhub
+

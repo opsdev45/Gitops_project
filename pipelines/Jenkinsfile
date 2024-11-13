@@ -1,0 +1,76 @@
+pipeline {
+    agent any
+    environment {
+        registry = "devops45of/jenkins"
+        registryCredential = 'dockerhub_token'
+        dockerImage = ''
+        containerId = ''
+    }
+    
+    stages {
+        stage('Clone') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Verify') {
+            steps {
+                sh '''
+                source /venv/bin/activate
+                python3 -m pylint --output-format=parseable --disable=E0401 --fail-under=5 app/app.py
+                '''
+            }
+        }
+        
+        stage('Building image') {
+            steps {
+                script {
+                    sh 'docker build -t ${registry}:${BUILD_NUMBER} -t ${registry}:latest .'
+                }
+            }
+        }
+        
+        stage('Push our image') {
+            steps {
+                script {
+                    docker.withRegistry('', registryCredential) {
+                        sh 'docker push ${registry}:${BUILD_NUMBER} && docker push ${registry}:latest'
+                    }
+                }
+            }
+        }
+        
+        stage('Trigger ArgoCD') {
+            when {
+                expression {
+                    env.GIT_BRANCH == 'origin/main'
+                }
+            }
+            steps {
+                script {
+                    build job: 'argocd',
+                        parameters: [
+                            string(name: 'NAMESPACE', value: "prod"),
+                            string(name: 'DIR', value: "deploy"),
+                            string(name: 'TAG', value: "${BUILD_NUMBER}")
+                        ]
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                slackSend(channel: "pipeline", message: "Pipeline passed successfully - image: ${registry}:${BUILD_NUMBER}")
+            }
+        }
+        failure {
+            script {
+                slackSend(channel: "pipeline_fail", message: "Pipeline failed")
+            }
+        }
+    }
+}
+
