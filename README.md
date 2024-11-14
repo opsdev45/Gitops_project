@@ -1,7 +1,8 @@
 # Gitops CI/CD Project
 ### Create vpc in AWS with Terraform
 ### Create eks cluster and ArgoCD with Terraform
-### Jenkins pipeline for build test and trigger argocd (gitops)
+### Jenkins pipeline for build test and trigger ArgoCD (GitOps)
+### This project have two repo: Dev repo and Manifest repo
 #### NOTE: All the secret saved in Jenkins
 #
 <img src="migdal.jpg">
@@ -9,8 +10,9 @@
 ## Terraform - Terraform have 3 module:
 * VPC
 * EKS
-* ArgoCD
+* ArgoCD (ALB)
 #### NOTE: The state file saved in s3 bucket
+#### EKS worker on two AZ
 Create all the resource
 ```
 terraform init
@@ -28,13 +30,14 @@ argocd login $ARGOCD_SERVER --username admin --password $ARGO_PWD --insecure
 
 ```
 
-## Jenkins Pipeline
+## Jenkins Pipeline (not with terraform)
 ### CI pipeline
 * PULL
 * VERIFY
 * BUILD
+* TEST
 * PUSH
-* TRIGGET CD PIPELINE
+* TRIGGER CD PIPELINE
 * MESSAGE
 #### The pipeline will test all the branches but deploy only the main branch
 
@@ -47,9 +50,9 @@ argocd login $ARGOCD_SERVER --username admin --password $ARGO_PWD --insecure
 
 # Advance- sealed secret
 
-## Create secret with base64 for the dockerhub
-
-* Install secret manager in k8s
+## Sealed k8s secret
+1. Create secret with base64 for the DockerHub
+2. Install secret manager in k8s
 ```
 # kubeseal
 wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.18.0/kubeseal-0.18.0-linux-amd64.tar.gz
@@ -60,13 +63,16 @@ sudo install -m 755 kubeseal /usr/local/bin/kubeseal
 wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.18.0/controller.yaml
 kubectl apply -f controller.yaml
 
-
+```
+3. Sealed the secret
+```
 
 * run secret without apply in k8s for create kubeseal secret
 
-# kubeseal --format=yaml: Encrypts the secret using the Sealed Secrets public key from the controller in your cluster and outputs it in YAML format.
+# kubeseal --format=yaml: Encrypts the secret using the Sealed Secrets public key from the controller in the cluster and outputs it in YAML format.
 
 kubectl create -f secret.yaml --dry-run=client -o yaml | kubeseal --format=yaml > my-sealed-secret.yaml
+
 ```
 
 

@@ -3,7 +3,6 @@ pipeline {
     environment {
         registry = "devops45of/jenkins"
         registryCredential = 'dockerhub_token'
-        dockerImage = ''
         containerId = ''
     }
     
@@ -27,6 +26,20 @@ pipeline {
             steps {
                 script {
                     sh 'docker build -t ${registry}:${BUILD_NUMBER} -t ${registry}:latest .'
+                }
+            }
+        }
+        stage('test Container') {
+            steps {
+                script {
+                    containerId = sh(script: "docker run -d -p 8000:8000 ${registry}:${BUILD_NUMBER}", returnStdout: true).trim()
+                    echo "Container ID: ${containerId}"
+        
+                    sh '''
+                    source /venv/bin/activate
+                    sleep 10
+                    python3 app/test.py
+                    '''
                 }
             }
         }
@@ -61,6 +74,11 @@ pipeline {
     }
     
     post {
+        always {
+            script {
+                sh "docker stop ${containerId} && docker rm ${containerId}"
+            }
+        }
         success {
             script {
                 slackSend(channel: "pipeline", message: "Pipeline passed successfully - image: ${registry}:${BUILD_NUMBER}")
