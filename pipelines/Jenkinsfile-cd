@@ -1,0 +1,109 @@
+pipeline {
+    agent any
+    environment {
+        AWS_ACCESS_KEY_ID = credentials('access_key')
+        AWS_SECRET_ACCESS_KEY = credentials('secret_key')
+        AWS_DEFAULT_REGION = "eu-west-2"
+
+    }
+    parameters {
+        string(name: 'NAMESPACE', defaultValue: 'prod', description: 'ArgoCD Namespace')
+        string(name: 'DIR', defaultValue: 'deploy', description: 'Directory Path')
+        string(name: 'TAG', defaultValue: 'latest', description: 'Docker Image Tag')
+    }
+    stages {
+        stage('clean') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Login to ArgoCD') {
+            steps {
+                script {
+                    sh '''
+                    aws eks update-kubeconfig --name demo
+
+                    export ARGOCD_SERVER=`kubectl get svc argocd-server -n argocd -o json | jq --raw-output '.status.loadBalancer.ingress[0].hostname'`
+
+                    export ARGO_PWD=`kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
+
+                    argocd login $ARGOCD_SERVER --username admin --password $ARGO_PWD --insecure
+                    '''
+                }
+            }
+        }
+        
+        stage('Update Image Tag in Deployment YAML') {
+            steps {
+                script {
+                    // Update deployment YAML with new image tag
+                    sh '''
+                    yq -i ".image.tag = \"${TAG}\"" "${DIR}/values.yaml"
+                    '''
+                }
+            }
+        }
+        
+        stage('Commit and Push Changes') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'gitlab_devops', usernameVariable: 'GIT_USERNAME',  passwordVariable: 'GIT_PASSWORD')]) {
+                        sh '''
+                        git config user.email "jenkins@CI.com"
+                        git config user.name "Jenkins CI"
+                        git checkout main
+                        git remote set-url origin https://opsdev45:${GIT_PASSWORD}@gitlab.com/opsdev45/argocd.git
+                        git add ${DIR}
+                        git commit -m "Update image tag to ${TAG}"
+                        git push origin main
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Check if ArgoCD Application Exists') {
+            steps {
+                script {
+                    def appExists = sh(returnStatus: true, script: "argocd app get ${NAMESPACE}") == 0
+                    if (appExists) {
+                        env.EXISTS = 'true'
+                    } else {
+                        env.EXISTS = 'false'
+                    }
+                }
+            }
+        }
+        
+        stage('Create ArgoCD Application') {
+            when {
+                expression { env.EXISTS == 'false' }
+            }
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'gitlab_devops', usernameVariable: 'GIT_USERNAME',  passwordVariable: 'GIT_PASSWORD')]) {
+                        sh '''
+                        argocd app create ${NAMESPACE} \
+                        --repo https://opsdev45:${GIT_PASSWORD}@gitlab.com/opsdev45/argocd.git \
+                        --path ${DIR} \
+                        --dest-namespace ${NAMESPACE} \
+                        --dest-server https://kubernetes.default.svc \
+                        --revision HEAD \
+                        --project default \
+                        --sync-policy automated \
+                        --auto-prune \
+                        --sync-option CreateNamespace=true
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}
+
