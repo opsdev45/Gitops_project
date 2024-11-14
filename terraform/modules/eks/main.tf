@@ -1,5 +1,5 @@
-resource "aws_iam_role" "demo" {
-  name = "eks-cluster-demo"
+resource "aws_iam_role" "migdal" {
+  name = "eks-cluster-migdal"
 
   assume_role_policy = <<POLICY
     {
@@ -17,20 +17,20 @@ resource "aws_iam_role" "demo" {
     POLICY
 }
 
-resource "aws_iam_role_policy_attachment" "demo-AmazonEKSClusterPolicy" {
+resource "aws_iam_role_policy_attachment" "migdal-AmazonEKSClusterPolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.demo.name
+  role       = aws_iam_role.migdal.name
 }
 
-resource "aws_eks_cluster" "demo" {
-  name     = "demo"
-  role_arn = aws_iam_role.demo.arn
+resource "aws_eks_cluster" "migdal" {
+  name     = "migdal"
+  role_arn = aws_iam_role.migdal.arn
 
   vpc_config {
     subnet_ids = var.private_subnet_ids
   }
 
-  depends_on = [aws_iam_role_policy_attachment.demo-AmazonEKSClusterPolicy]
+  depends_on = [aws_iam_role_policy_attachment.migdal-AmazonEKSClusterPolicy]
 }
 
 resource "aws_iam_role" "nodes" {
@@ -64,7 +64,7 @@ resource "aws_iam_role_policy_attachment" "nodes-AmazonEC2ContainerRegistryReadO
 }
 
 resource "aws_eks_node_group" "private-nodes" {
-  cluster_name    = aws_eks_cluster.demo.name
+  cluster_name    = aws_eks_cluster.migdal.name
   node_group_name = "private-nodes"
   node_role_arn   = aws_iam_role.nodes.arn
 
@@ -74,7 +74,7 @@ resource "aws_eks_node_group" "private-nodes" {
   instance_types = ["t3.medium"]
 
   scaling_config {
-    desired_size = 2
+    desired_size = 1
     max_size     = 2
     min_size     = 0
   }
@@ -94,6 +94,6 @@ resource "aws_eks_node_group" "private-nodes" {
   ]
 }
 
-data "aws_eks_cluster_auth" "demo" {
-  name = aws_eks_cluster.demo.name
+data "aws_eks_cluster_auth" "migdal" {
+  name = aws_eks_cluster.migdal.name
 }
