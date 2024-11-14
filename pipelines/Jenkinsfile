@@ -1,5 +1,14 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            label 'docker'
+            image "devops45of/jenkins:agent-ci"
+            args '-u 0:0 -v /var/run/docker.sock:/var/run/docker.sock'
+            alwaysPull true
+
+
+        }
+    }
     environment {
         registry = "devops45of/jenkins"
         registryCredential = 'dockerhub_token'
@@ -32,12 +41,26 @@ pipeline {
         stage('test Container') {
             steps {
                 script {
-                    containerId = sh(script: "docker run -d -p 8000:8000 ${registry}:${BUILD_NUMBER}", returnStdout: true).trim()
+                    containerId = sh(script: "docker run -d -p 8000:8000 --name app ${registry}:${BUILD_NUMBER}", returnStdout: true).trim()
                     echo "Container ID: ${containerId}"
-        
+                    // Check if container is running
                     sh '''
+                    export run=true
+                    while $run
+                    do
+                        # Get the status of the container
+                        status=$(docker inspect -f '{{.State.Status}}' app)
+
+                        if [ "$status" = "running" ]; then
+                            run=false
+                        elif [ "$status" = "exited" ]; then
+                            exit 1
+                        else
+                            sleep 2
+                        fi
+                    done
+
                     source /venv/bin/activate
-                    sleep 10
                     python3 app/test.py
                     '''
                 }
@@ -48,7 +71,7 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry('', registryCredential) {
-                        sh 'docker push ${registry}:${BUILD_NUMBER} && docker push ${registry}:latest'
+                        sh 'docker push --all-tags ${registry}'
                     }
                 }
             }
@@ -76,7 +99,7 @@ pipeline {
     post {
         always {
             script {
-                sh "docker stop ${containerId} && docker rm ${containerId}"
+                sh "docker stop ${containerId} && docker rm ${containerId} && docker rmi  ${registry}:${BUILD_NUMBER}"
             }
         }
         success {
@@ -91,4 +114,5 @@ pipeline {
         }
     }
 }
+
 

@@ -1,5 +1,12 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            label 'docker'
+            image "devops45of/jenkins:agent-cd"
+            args '-u 0:0 -v /var/run/docker.sock:/var/run/docker.sock'
+            alwaysPull true
+        }
+    }
     environment {
         AWS_ACCESS_KEY_ID = credentials('access_key')
         AWS_SECRET_ACCESS_KEY = credentials('secret_key')
@@ -9,14 +16,9 @@ pipeline {
     parameters {
         string(name: 'NAMESPACE', defaultValue: 'prod', description: 'ArgoCD Namespace')
         string(name: 'DIR', defaultValue: 'deploy', description: 'Directory Path')
-        string(name: 'TAG', defaultValue: 'latest', description: 'Docker Image Tag')
+        string(name: 'TAG', defaultValue: '"latest"', description: 'Docker Image Tag')
     }
     stages {
-        stage('clean') {
-            steps {
-                cleanWs()
-            }
-        }
         stage('Checkout Code') {
             steps {
                 checkout scm
@@ -27,7 +29,7 @@ pipeline {
             steps {
                 script {
                     sh '''
-                    aws eks update-kubeconfig --name demo
+                    aws eks update-kubeconfig --name migdal
 
                     export ARGOCD_SERVER=`kubectl get svc argocd-server -n argocd -o json | jq --raw-output '.status.loadBalancer.ingress[0].hostname'`
 
@@ -55,9 +57,10 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'gitlab_devops', usernameVariable: 'GIT_USERNAME',  passwordVariable: 'GIT_PASSWORD')]) {
                         sh '''
+                        git config --global --add safe.directory /home/ubuntu/jenkins_agent/workspace/argocd
+                        git checkout main
                         git config user.email "jenkins@CI.com"
                         git config user.name "Jenkins CI"
-                        git checkout main
                         git remote set-url origin https://opsdev45:${GIT_PASSWORD}@gitlab.com/opsdev45/argocd.git
                         git add ${DIR}
                         git commit -m "Update image tag to ${TAG}"
@@ -106,4 +109,5 @@ pipeline {
         }
     }
 }
+
 
